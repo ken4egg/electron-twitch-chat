@@ -79,6 +79,8 @@ export const TwitchChat = React.memo<{
   );
 });
 
+TwitchChat.displayName = 'TwitchChat';
+
 const Container = styled.div`
   color: white;
   font-size: 13px;

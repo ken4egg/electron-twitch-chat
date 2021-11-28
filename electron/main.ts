@@ -1,7 +1,19 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import {
+  app,
+  BrowserWindow,
+  ipcMain,
+  autoUpdater,
+  session,
+  dialog,
+} from 'electron';
 import storage from 'electron-json-storage';
 import { SettingsState } from '../src/Settings';
 import { createResizeHandle, saveStateStorage } from './utils';
+
+if (require('electron-squirrel-startup')) {
+  app.quit();
+}
+
 // import { session } from 'electron'
 // import path from 'path';
 // import os from 'os';
@@ -38,6 +50,23 @@ function createWindow() {
     },
   });
 
+  // TODO: поправить корректные csp, пока разрешено все
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [
+          'default-src *;' +
+            "style-src * 'unsafe-inline';" +
+            "script-src * 'unsafe-inline' 'unsafe-eval';" +
+            "img-src * data: 'unsafe-inline'; " +
+            "connect-src * 'unsafe-inline';" +
+            'frame-src *;',
+        ],
+      },
+    });
+  });
+
   mainWindow.loadURL(MAIN_WINDOW_WEBPACK_ENTRY);
 
   console.log('MAIN_WINDOW_WEBPACK_ENTRY', MAIN_WINDOW_WEBPACK_ENTRY);
@@ -63,12 +92,13 @@ function createWindow() {
     },
   });
 
-  viewWindow.loadURL(`${MAIN_WINDOW_WEBPACK_ENTRY}/#/chat`);
+  viewWindow.loadURL(`${MAIN_WINDOW_WEBPACK_ENTRY}#/chat`);
 
   mainWindow.webContents.on('did-finish-load', () => {
     console.log('send to main', viewState);
 
     mainWindow?.webContents.send('change-state', viewState);
+    mainWindow?.webContents.send('message', 'version', app.getVersion());
   });
 
   viewWindow.webContents.on('did-finish-load', () => {
@@ -82,9 +112,9 @@ function createWindow() {
   });
 
   // TODO убрать в production
-  mainWindow.webContents.openDevTools();
+  // mainWindow.webContents.openDevTools();
 
-  viewWindow.webContents.openDevTools();
+  // viewWindow.webContents.openDevTools();
 
   viewWindow.on('closed', () => {
     viewWindow = null;
@@ -137,6 +167,40 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();
   }
+});
+
+autoUpdater.on('update-available', () => {
+  mainWindow?.webContents.send('message', 'version-new');
+});
+
+autoUpdater.setFeedURL({
+  url: `https://update.electronjs.org/ken4egg/electron-twitch-chat/${
+    process.platform
+  }-${process.arch}/${app.getVersion()}`,
+});
+
+// Авто-обновление раз в 15 минут
+setInterval(() => {
+  autoUpdater.checkForUpdates();
+}, 15 * 60 * 1000);
+
+autoUpdater.on('update-downloaded', (event, releaseNotes, releaseName) => {
+  const dialogOpts = {
+    type: 'info',
+    buttons: ['Перезапустить', 'Позже'],
+    title: 'Обновление',
+    message: process.platform === 'win32' ? releaseNotes : releaseName,
+    detail: 'Новая версия была загружена, перезапустите чтобы установить',
+  };
+
+  dialog.showMessageBox(dialogOpts).then((returnValue) => {
+    if (returnValue.response === 0) autoUpdater.quitAndInstall();
+  });
+});
+
+autoUpdater.on('error', (message) => {
+  console.error('There was a problem updating the application');
+  console.error(message);
 });
 
 app.on('activate', () => {

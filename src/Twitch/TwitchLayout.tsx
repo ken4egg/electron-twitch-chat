@@ -5,6 +5,7 @@ import {
   getGlobalBadges,
   getSubscriberBadges,
   getUserId,
+  has,
 } from '../utils';
 import { TwitchChat } from './TwtichChat';
 import styled from 'styled-components';
@@ -15,7 +16,7 @@ import styled from 'styled-components';
 export const TwitchLayout = React.memo(() => {
   const [badges, setBadges] = React.useState<Badges>();
   const [isLoading, setIsLoading] = React.useState(true);
-  const [error, setError] = React.useState(null);
+  const [error, setError] = React.useState<string | null>(null);
 
   // const [{ opacity, channels }, setState] = React.useState<
   //   Pick<SettingsState, 'channels' | 'opacity'>
@@ -31,7 +32,7 @@ export const TwitchLayout = React.memo(() => {
   const style = React.useMemo(() => ({ opacity }), [opacity]);
 
   React.useEffect(() => {
-    window.Main.on('change-state', (state) => {
+    return window.Main.subscribe('change-state', (state) => {
       setOpacity((current) => {
         if (current === state?.opacity || typeof state?.opacity !== 'number') {
           return current;
@@ -83,7 +84,11 @@ export const TwitchLayout = React.memo(() => {
           setIsLoading(false);
         });
       } catch (e) {
-        setError(e.message);
+        if (has(e, 'message') && typeof e.message === 'string') {
+          setError(e.message);
+        } else {
+          setError(JSON.stringify(e));
+        }
       }
     })();
   }, [channels]);

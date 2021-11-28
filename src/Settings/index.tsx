@@ -22,11 +22,25 @@ export const defaultSettings: SettingsState = {
 
 export const Settings = React.memo(() => {
   const [state, setState] = React.useState<SettingsState>();
+  const [version, setVersion] = React.useState('');
+  const [isLoadingNewVersion, setIsLoadingNewVersion] = React.useState(false);
 
-  const { opacity, alwaysOnTop, channels } = state || defaultSettings;
+  const { opacity = 100, alwaysOnTop = false, channels = [''] } = state || {};
 
   React.useEffect(() => {
-    window.Main.on('change-state', (newState) => {
+    return window.Main.subscribe('message', (event, payload) => {
+      if (event === 'version' && typeof payload === 'string') {
+        setVersion(payload);
+      }
+
+      if (event === 'version-new') {
+        setIsLoadingNewVersion(true);
+      }
+    });
+  }, []);
+
+  React.useEffect(() => {
+    return window.Main.subscribe('change-state', (newState) => {
       if (newState && Object.keys(newState).length > 0) {
         setState(merge(defaultSettings, newState));
       }
@@ -112,6 +126,8 @@ export const Settings = React.memo(() => {
           </CheckBox>
         </ViewBox>
       </ViewBoxGroup>
+      {version && <VersionFooter>Версия {version}</VersionFooter>}
+      {isLoadingNewVersion && <p>Загружается новая версия...</p>}
     </Container>
   );
 });
@@ -122,6 +138,13 @@ const Container = styled.div`
   background: #0a0e31;
   height: 100vh;
   color: #fff;
+`;
+
+const VersionFooter = styled.div`
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translate(-50%);
 `;
 
 const ViewBox = styled.div`
